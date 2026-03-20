@@ -30,8 +30,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            allowFileAccessFromFileURLs = true
-            allowUniversalAccessFromFileURLs = true
             mediaPlaybackRequiresUserGesture = false
             cacheMode = WebSettings.LOAD_NO_CACHE
         }
