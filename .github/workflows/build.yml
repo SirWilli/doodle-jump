@@ -1,4 +1,4 @@
-name: Build Debug APK
+name: Build Release APK
 
 on:
   push:
@@ -29,23 +29,43 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > $GITHUB_WORKSPACE/app/release.jks
+          echo "Keystore size: $(wc -c < $GITHUB_WORKSPACE/app/release.jks) bytes"
 
-      - name: Upload Debug APK as Artifact
+      - name: Build Release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/app/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          BTVER=$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
+          echo "Using build-tools: $BTVER"
+          BT="$ANDROID_HOME/build-tools/$BTVER"
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "APK: $APK ($(du -h $APK | cut -f1))"
+          $BT/aapt dump badging "$APK" | grep -E "package:|sdkVersion|targetSdk|application-debuggable|launchable-activity|uses-feature"
+          echo "---"
+          $BT/zipalign -c -v 4 "$APK" | tail -3
+
+      - name: Upload Release APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bird-jump-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: bird-jump-release-apk
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 30
 
       - name: Create Release
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}
-          name: "Debug Build #${{ github.run_number }}"
-          files: app/build/outputs/apk/debug/*.apk
+          name: "Release Build #${{ github.run_number }}"
+          files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
