@@ -24,7 +24,7 @@ android {
             )
         }
         debug {
-            applicationIdSuffix = ".debug"
+            // No suffix - keeps applicationId as com.lorenz.birdjump
         }
     }
 
