@@ -2,7 +2,15 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e78ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bird Jump">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
   <title>Bird Jump</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -70,7 +78,7 @@ const store = {
 };
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let state = 'start'; // 'start' | 'playing' | 'dead'
+let state = 'start'; // 'start' | 'playing' | 'paused' | 'dead'
 let score = 0;
 let cameraY = 0;
 let platforms = [], particles = [], stars = [];
@@ -824,6 +832,16 @@ function drawHUD() {
     ctx.fillText(hint,W/2,H-14); ctx.textAlign='left';
   }
 
+
+  // ── Pause button (top-center, large touch-target) ──
+  const pbx = W/2-22, pby = 8, pbw = 44, pbh = 36;
+  ctx.fillStyle = 'rgba(0,0,0,0.42)'; roundRect(ctx,pbx,pby,pbw,pbh,10); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1.2;
+  roundRect(ctx,pbx,pby,pbw,pbh,10); ctx.stroke();
+  // Two vertical bars
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(pbx+12, pby+9, 6, 18);
+  ctx.fillRect(pbx+26, pby+9, 6, 18);
   // Unlock notice
   if (newUnlockTimer > 0) {
     newUnlockTimer--;
@@ -977,16 +995,71 @@ function drawDeadScreen() {
   const bg=ctx.createLinearGradient(bx,by,bx,by+bh);
   bg.addColorStop(0,'#4A90E2'); bg.addColorStop(1,'#2255AA');
   ctx.fillStyle=bg; roundRect(ctx,bx,by,bw,bh,14); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='bold 20px Segoe UI,Arial'; ctx.fillText('NOCHMAL',W/2,by+33);
+  ctx.fillStyle='#fff'; ctx.font='bold 20px Segoe UI,Arial'; ctx.fillText('↺  NEUSTART',W/2,by+33);
   ctx.textAlign='left';
 }
 
+
+// ─── Pause Screen ─────────────────────────────────────────────────────────────
+const PAUSE_RESUME_BTN  = { x: W/2-90, y: null, w: 180, h: 50 }; // y set in draw
+const PAUSE_RESTART_BTN = { x: W/2-90, y: null, w: 180, h: 50 };
+function drawPauseScreen() {
+  ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center';
+
+  // Title
+  ctx.save();
+  ctx.shadowColor='#4A90E2'; ctx.shadowBlur=28;
+  ctx.fillStyle='#fff'; ctx.font='bold 56px Segoe UI,Arial';
+  ctx.fillText('PAUSE',W/2,H/2-100);
+  ctx.restore();
+
+  // Score during pause
+  ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font='18px Segoe UI,Arial';
+  ctx.fillText('Score: '+Math.floor(score),W/2,H/2-55);
+
+  // Resume button
+  const rby=H/2-20;
+  PAUSE_RESUME_BTN.y=rby;
+  const rbx=PAUSE_RESUME_BTN.x, rbw=PAUSE_RESUME_BTN.w, rbh=PAUSE_RESUME_BTN.h;
+  const rbg=ctx.createLinearGradient(rbx,rby,rbx,rby+rbh);
+  rbg.addColorStop(0,'#4A90E2'); rbg.addColorStop(1,'#2255AA');
+  ctx.fillStyle=rbg; roundRect(ctx,rbx,rby,rbw,rbh,14); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 20px Segoe UI,Arial';
+  ctx.fillText('▶  WEITER',W/2,rby+33);
+
+  // Restart button
+  const rstby=H/2+50;
+  PAUSE_RESTART_BTN.y=rstby;
+  const rstbx=PAUSE_RESTART_BTN.x, rstbw=PAUSE_RESTART_BTN.w, rstbh=PAUSE_RESTART_BTN.h;
+  ctx.fillStyle='rgba(220,60,60,0.85)'; roundRect(ctx,rstbx,rstby,rstbw,rstbh,14); ctx.fill();
+  ctx.strokeStyle='rgba(255,120,120,0.5)'; ctx.lineWidth=1.5;
+  roundRect(ctx,rstbx,rstby,rstbw,rstbh,14); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='bold 20px Segoe UI,Arial';
+  ctx.fillText('↺  NEUSTART',W/2,rstby+33);
+
+  // Hint
+  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='12px Segoe UI,Arial';
+  ctx.fillText('Escape / Pause-Button zum Fortsetzen',W/2,H/2+120);
+  ctx.textAlign='left';
+}
+
+function togglePause() {
+  if (state==='playing') state='paused';
+  else if (state==='paused') state='playing';
+}
+
+// Helper: is (cx,cy) inside a button {x,y,w,h}?
+function inBtn(btn, cx, cy) {
+  return btn.y!==null && cx>=btn.x && cx<=btn.x+btn.w && cy>=btn.y && cy<=btn.y+btn.h;
+}
 // ─── Input ───────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e=>{
   keys[e.key]=true;
   if (state==='start'&&(e.key===' '||e.key==='Enter')) startGame();
   if (state==='dead' &&(e.key===' '||e.key==='Enter')) startGame();
   if (state==='playing'&&(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W')) shoot();
+  if (e.key==='Escape') { togglePause(); e.preventDefault(); }
   if ([' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
 });
 document.addEventListener('keyup', e=>{ keys[e.key]=false; });
@@ -997,6 +1070,19 @@ canvas.addEventListener('click', e=>{
   const rect=canvas.getBoundingClientRect();
   const scaleX=W/rect.width, scaleY=H/rect.height;
   const cx=(e.clientX-rect.left)*scaleX, cy=(e.clientY-rect.top)*scaleY;
+
+  // Pause button (top-center, always visible while playing or paused)
+  const pbx=W/2-22, pby=8, pbw=44, pbh=36;
+  if ((state==='playing'||state==='paused') && cx>=pbx&&cx<=pbx+pbw&&cy>=pby&&cy<=pby+pbh) {
+    togglePause(); return;
+  }
+
+  // Paused: Resume / Restart buttons
+  if (state==='paused') {
+    if (inBtn(PAUSE_RESUME_BTN, cx, cy))  { togglePause(); return; }
+    if (inBtn(PAUSE_RESTART_BTN, cx, cy)) { startGame();   return; }
+    return;
+  }
 
   if (state==='start') {
     // Check character cards
@@ -1040,6 +1126,18 @@ canvas.addEventListener('touchstart', e=>{
   const scaleY=H/rect.height;
   const ty=(e.touches[0].clientY-rect.top)*scaleY;
 
+  // Pause button touch (top-center)
+  const pbx2=W/2-22, pby2=8, pbw2=44, pbh2=36;
+  const tx2=(e.touches[0].clientX-rect.left)*(W/rect.width);
+  if ((state==='playing'||state==='paused') && tx2>=pbx2&&tx2<=pbx2+pbw2&&ty>=pby2&&ty<=pby2+pbh2) {
+    togglePause(); return;
+  }
+  // Paused: resume / restart
+  if (state==='paused') {
+    if (inBtn(PAUSE_RESUME_BTN, tx2, ty))  { togglePause(); return; }
+    if (inBtn(PAUSE_RESTART_BTN, tx2, ty)) { startGame();   return; }
+    return;
+  }
   if (state==='start'||state==='dead') {
     // Simulate click for character select
     const fakeClick=new MouseEvent('click',{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY});
@@ -1124,6 +1222,17 @@ function gameLoop() {
     player.draw();
     drawStartScreen();
 
+  } else if (state==='paused') {
+    // Draw the frozen game world, then overlay
+    for (const p of platforms) drawPlatform(p);
+    for (const it of items)    drawItem(it);
+    player.draw();
+    for (const e of enemies)   drawEnemy(e);
+    drawProjectiles();
+    drawParticles();
+    drawHUD();
+    drawPauseScreen();
+
   } else if (state==='dead') {
     for (const p of platforms) drawPlatform(p);
     updateParticles(); drawParticles();
@@ -1139,6 +1248,16 @@ setupGyro();
 charSelectIndex = store.selected;
 state='start';
 gameLoop();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.log('SW error:', err));
+  });
+}
 </script>
 </body>
 </html>
